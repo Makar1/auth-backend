@@ -1,15 +1,14 @@
-from passlib.context import CryptContext
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from jose import jwt, JWTError
-from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
-from fastapi.security import OAuth2PasswordBearer
-from database import SessionLocal
 from fastapi import HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import joinedload, Session
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from database import get_db
 from models import User
+from security import verify_password
 
-from sqlalchemy.orm import joinedload
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = None
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -26,14 +25,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
 
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def verify_token(token: str):
 
@@ -43,34 +42,10 @@ def verify_token(token: str):
     except JWTError:
         return None
 
-# def get_current_user(token: str = Depends(oauth2_scheme)):
-#     import crud
-#
-#     credentials_exception = HTTPException(
-#         status_code=status.HTTP_401_UNAUTHORIZED,
-#         detail="Could not validate credentials",
-#         headers={"WWW-Authenticate": "Bearer"},
-#     )
-#
-#     payload = verify_token(token)
-#     if payload is None:
-#         raise credentials_exception
-#     email: str = payload.get("sub")
-#     if email is None:
-#         raise credentials_exception
-#
-#     db = SessionLocal()
-#     try:
-#         user = crud.get_user_by_email(db, email=email)
-#         if user is None:
-#             raise credentials_exception
-#         return user
-#     finally:
-#         db.close()
-
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    import crud  # Локальный импорт для разрыва цикла
-
+def get_current_user(
+        db: Session = Depends(get_db),
+        token: str = Depends(oauth2_scheme)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -80,23 +55,24 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     payload = verify_token(token)
     if payload is None:
         raise credentials_exception
+
     email: str = payload.get("sub")
     if email is None:
         raise credentials_exception
 
-    db = SessionLocal()
-    try:
-    # 🔑 ИСПРАВЛЕНИЕ: joinedload заставляет загрузить роль сразу
-        user = (db.query(User)
-                .options(joinedload(User.role))  # ⬅️ ВОТ ЭТО РЕШАЕТ ПРОБЛЕМУ
-                .filter(User.email == email)
-                .first())
 
-        if user is None:
-            raise credentials_exception
-        return user
-    finally:
-        db.close()
+    user = (db.query(User)
+            .options(joinedload(User.role))
+            .filter(
+                User.email == email,
+                User.is_deleted == False
+            )
+            .first())
+
+    if user is None:
+        raise credentials_exception
+
+    return user
 
 
 def require_role(required_role: str):

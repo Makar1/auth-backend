@@ -1,21 +1,18 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from database import engine, SessionLocal
+from database import engine, SessionLocal, get_db
 from schemas import UserCreate, UserResponse, UserLogin, Token
-from auth import get_current_user, create_access_token, verify_password, require_role
+from auth import get_current_user, create_access_token, require_role
+from security import verify_password
 from models import User
 import crud
+import models
+import secrets
+
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="RBAC Auth API")
-
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @app.post("/register", response_model=UserResponse)
@@ -31,7 +28,6 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/login", response_model=Token)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
-
     db_user = crud.get_user_by_email(db, email=user_data.email)
 
     if not db_user or not verify_password(user_data.password, db_user.hashed_password):
@@ -41,12 +37,17 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not db_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+    if db_user.is_deleted:
+        raise HTTPException(status_code=400, detail="User account has been deleted")
 
     access_token = create_access_token(data={"sub": db_user.email})
+    refresh_token = crud.create_refresh_token_record(db, user_id=db_user.id)
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "refresh_token": refresh_token
+    }
 
 
 @app.get("/admin/dashboard")
