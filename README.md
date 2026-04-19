@@ -67,7 +67,7 @@ python test_final.py
 Попробуй залогиниться под разными пользователями и вызвать
 `GET /products` или `POST /orders` — увидишь разницу между 200, 401 и 403.
 
-![Swagger UI](docs/swagger.png)
+![Swagger UI](docs/image.png)
 
 ### Через автоматический тест
 
