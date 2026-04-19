@@ -16,8 +16,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    patronymic = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    full_name = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     is_deleted = Column(Boolean, default=False, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
