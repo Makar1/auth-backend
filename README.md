@@ -27,7 +27,7 @@ Backend-приложение с системой аутентификации и
 pip install -r requirements.txt
 
 # 2. Создать БД в pgAdmin
-#    Databases (ПКМ) → Create → Database → Name: auth_db → Save
+Databases (ПКМ) → Create → Database → Name: auth_db → Save
 
 # 3. Настроить подключение
 copy .env.example .env  
