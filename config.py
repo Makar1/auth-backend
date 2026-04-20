@@ -1,7 +1,9 @@
-from datetime import timedelta
+from dotenv import load_dotenv
+import os
+import secrets
 
-SECRET_KEY = "EzWVADjVwVQFfLwIr1ifGICYOmE15NyGXvUTDZ5Oz3I"
+load_dotenv()
 
+SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
 ALGORITHM = "HS256"
-
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
